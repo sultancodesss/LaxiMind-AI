@@ -10,31 +10,25 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "laximind_default_secret";
 
-// ─── Middleware ────────────────────────────────────────────────────────────────
+// Middleware 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests from any localhost port (Vite can use 5173, 5174, etc.)
-    if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  origin: "http://localhost:5173",
   credentials: true,
 }));
 app.use(express.json());
 
-// ─── File Upload ───────────────────────────────────────────────────────────────
+//   File Upload
+
 const upload = multer({ dest: "uploads/" });
 
 app.post("/upload", upload.single("audio"), async (req, res) => {
   res.json({ transcript: "This is AI generated transcript" });
 });
 
-// ─── Auth Middleware ───────────────────────────────────────────────────────────
+//   Auth Middleware
 function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({ error: "Access denied. No token provided." });
@@ -49,7 +43,7 @@ function verifyToken(req, res, next) {
   }
 }
 
-// ─── Register ─────────────────────────────────────────────────────────────────
+// Register 
 app.post("/api/auth/register", async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -62,13 +56,12 @@ app.post("/api/auth/register", async (req, res) => {
   }
 
   try {
-    // Check if email already exists
-    const [existing] = await pool.query(
+    const [existingResult] = await pool.query(
       "SELECT id FROM users WHERE email = ?",
       [email]
     );
 
-    if (existing.length > 0) {
+    if (existingResult.length > 0) {
       return res.status(409).json({ error: "An account with this email already exists." });
     }
 
@@ -76,14 +69,16 @@ app.post("/api/auth/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Insert user into DB
-    const [result] = await pool.query(
+    const [insertResult] = await pool.query(
       "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
       [name, email, hashedPassword]
     );
 
+    const userId = insertResult.insertId;
+
     // Generate JWT
     const token = jwt.sign(
-      { id: result.insertId, email, name },
+      { id: userId, email, name },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -91,7 +86,7 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(201).json({
       message: "Account created successfully!",
       token,
-      user: { id: result.insertId, name, email },
+      user: { id: userId, name, email },
     });
   } catch (err) {
     console.error("Register error:", err);
@@ -99,7 +94,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-// ─── Login ────────────────────────────────────────────────────────────────────
+//   Login 
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -109,16 +104,16 @@ app.post("/api/auth/login", async (req, res) => {
 
   try {
     // Find user by email
-    const [rows] = await pool.query(
+    const [result] = await pool.query(
       "SELECT * FROM users WHERE email = ?",
       [email]
     );
 
-    if (rows.length === 0) {
+    if (result.length === 0) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
-    const user = rows[0];
+    const user = result[0];
 
     // Compare password with hash
     const isMatch = await bcrypt.compare(password, user.password);
@@ -144,26 +139,26 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// ─── Get Current User (Protected) ─────────────────────────────────────────────
+//  Get Current User (Protected) 
 app.get("/api/auth/me", verifyToken, async (req, res) => {
   try {
-    const [rows] = await pool.query(
+    const [result] = await pool.query(
       "SELECT id, name, email, created_at FROM users WHERE id = ?",
       [req.user.id]
     );
 
-    if (rows.length === 0) {
+    if (result.length === 0) {
       return res.status(404).json({ error: "User not found." });
     }
 
-    return res.status(200).json({ user: rows[0] });
+    return res.status(200).json({ user: result[0] });
   } catch (err) {
     console.error("Get user error:", err);
     return res.status(500).json({ error: "Server error." });
   }
 });
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
+//  Start Server
 initDB()
   .then(() => {
     app.listen(PORT, () => {
