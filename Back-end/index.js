@@ -12,7 +12,18 @@ const JWT_SECRET = process.env.JWT_SECRET || "laximind_default_secret";
 
 // Middleware 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      "http://localhost:5173",
+      "https://laxi-mind-a12iiuf1v-sultancodesss-projects.vercel.app"
+    ];
+    // Allow if origin is in the list, or if it's a Vercel preview domain, or if no origin (e.g. curl)
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
