@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 
 const API_URL = (
   import.meta.env.VITE_API_URL ||
-  "https://pghero-dpg-d8kecai8qa3s738016sg-a.onrender.com"
+  "https://laximind-ai.onrender.com"
 ).replace(/\/$/, "");
 
 function Login() {
