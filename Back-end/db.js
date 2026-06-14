@@ -8,18 +8,23 @@ let queryWrapper;
 if (provider === "supabase") {
   const { Pool } = require("pg");
 
-  rawPool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    host: process.env.SUPABASE_DB_HOST,
-    port: process.env.SUPABASE_DB_PORT || 5432,
-    database: process.env.SUPABASE_DB_NAME || "postgres",
-    user: process.env.SUPABASE_DB_USER,
-    password: process.env.SUPABASE_DB_PASSWORD,
-    ssl: {
-      rejectUnauthorized: false
-    },
-    max: 10,
-  });
+  const poolConfig = process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        max: 10,
+      }
+    : {
+        host: process.env.SUPABASE_DB_HOST,
+        port: process.env.SUPABASE_DB_PORT || 5432,
+        database: process.env.SUPABASE_DB_NAME || "postgres",
+        user: process.env.SUPABASE_DB_USER,
+        password: process.env.SUPABASE_DB_PASSWORD,
+        ssl: { rejectUnauthorized: false },
+        max: 10,
+      };
+
+  rawPool = new Pool(poolConfig);
 
   // Query wrapper to mimic mysql2's pool.query(sql, params) -> [rows, fields]
   queryWrapper = async (sql, params) => {
