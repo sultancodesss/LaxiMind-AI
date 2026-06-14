@@ -1460,9 +1460,12 @@ dashbroad */
 }
 
 .lang-select {
+  
+
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
+  color: #182d47;
+  color: white;
   padding: 8px 14px;
   border-radius: 10px;
   font-family: inherit;
@@ -1474,8 +1477,9 @@ dashbroad */
 
 .lang-select:focus {
   outline: none;
-  border-color: #00ffff;
-  background: rgba(0, 0, 0, 0.2);
+  border-color: #0cefef;
+  background-color: rgb(49, 48, 48);
+  /* background: rgba(0, 0, 0, 0.2); */
 }
 
 .panel-icon-btn {

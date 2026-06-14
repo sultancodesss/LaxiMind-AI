@@ -7,7 +7,7 @@ let queryWrapper;
 
 if (provider === "supabase") {
   const { Pool } = require("pg");
-  
+
   rawPool = new Pool({
     connectionString: process.env.DATABASE_URL,
     host: process.env.SUPABASE_DB_HOST,
@@ -26,10 +26,10 @@ if (provider === "supabase") {
     // Convert MySQL placeholder '?' to PostgreSQL placeholder '$1', '$2', etc.
     let index = 1;
     const pgSql = sql.replace(/\?/g, () => `$${index++}`);
-    
+
     let finalSql = pgSql;
     const isInsert = finalSql.trim().toUpperCase().startsWith("INSERT INTO");
-    
+
     // Append RETURNING id for INSERT queries to simulate insertId
     if (isInsert && !finalSql.toUpperCase().includes("RETURNING")) {
       finalSql += " RETURNING id";
@@ -47,7 +47,7 @@ if (provider === "supabase") {
 
 } else {
   const mysql = require("mysql2/promise");
-  
+
   rawPool = mysql.createPool({
     host: process.env.DB_HOST || "localhost",
     user: process.env.DB_USER || "root",
@@ -86,7 +86,7 @@ async function initDB() {
         user: process.env.DB_USER || "root",
         password: process.env.DB_PASSWORD || "sultan",
       });
-      
+
       const dbName = process.env.DB_NAME || "laximind_ai";
       await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
       await connection.end();

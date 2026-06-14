@@ -1,21 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
-  Mic, MicOff, Save, CheckCircle, AlertCircle,
-  Sparkles, RefreshCw, FileText,
-} from 'lucide-react';
+  Mic,
+  MicOff,
+  Save,
+  CheckCircle,
+  AlertCircle,
+  Sparkles,
+  RefreshCw,
+  FileText,
+} from "lucide-react";
 
-const GROQ_API_BASE = 'https://api.groq.com/openai/v1';
-const GROQ_WHISPER_MODEL = 'whisper-large-v3';
+const GROQ_API_BASE = "https://api.groq.com/openai/v1";
+const GROQ_WHISPER_MODEL = "whisper-large-v3";
 
 function Live() {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState(null);
-  const [liveTranscript, setLiveTranscript] = useState('');
-  const [whisperTranscript, setWhisperTranscript] = useState('');
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [whisperTranscript, setWhisperTranscript] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [livePreview, setLivePreview] = useState("");
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -23,37 +31,54 @@ function Live() {
   const timerRef = useRef(null);
 
   const getApiKey = () =>
-    localStorage.getItem('leximind_groq_api_key') ||
+    localStorage.getItem("leximind_groq_api_key") ||
     import.meta.env.VITE_GROQ_API_KEY ||
-    '';
+    "";
 
   // Web Speech API initialization (browser-native live preview)
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
+      setIsSpeechSupported(true);
       const rec = new SpeechRecognition();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = 'en-US';
+      rec.lang = "en-US";
+      rec.maxAlternatives = 1;
 
       rec.onresult = (event) => {
-        let finalTranscript = '';
+        let interimTranscript = "";
+        let finalTranscript = "";
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const result = event.results[i][0]?.transcript || "";
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
+            finalTranscript += result;
+          } else {
+            interimTranscript += result;
           }
         }
+
+        setLivePreview(interimTranscript.trim());
+
         if (finalTranscript) {
-          setLiveTranscript((prev) => prev + ' ' + finalTranscript);
+          setLiveTranscript((prev) =>
+            `${prev} ${finalTranscript.trim()}`.trim(),
+          );
         }
       };
 
       rec.onerror = (e) => {
-        console.error('Speech recognition error', e);
+        console.error("Speech recognition error", e);
+        if (e.error !== "not-allowed") {
+          setError("Live speech preview had trouble reading your voice.");
+        }
       };
 
       recognitionRef.current = rec;
+    } else {
+      setIsSpeechSupported(false);
     }
 
     return () => {
@@ -74,17 +99,44 @@ function Live() {
   }, [isRecording]);
 
   const startRecording = async () => {
-    setError('');
+    setError("");
     setAudioUrl(null);
-    setLiveTranscript('');
-    setWhisperTranscript('');
+    setLiveTranscript("");
+    setLivePreview("");
+    setWhisperTranscript("");
     setSaved(false);
     audioChunksRef.current = [];
     setDuration(0);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Your browser does not support microphone access.");
+      }
+
+      if (typeof MediaRecorder === "undefined") {
+        throw new Error("Audio recording is not supported in this browser.");
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      const preferredMimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+      ];
+      const mimeType = preferredMimeTypes.find((type) =>
+        MediaRecorder.isTypeSupported(type),
+      );
+
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -93,7 +145,15 @@ function Live() {
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const blobType = mediaRecorder.mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
+
+        if (audioChunksRef.current.length === 0) {
+          setError("No audio was captured. Please try recording again.");
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
         const url = URL.createObjectURL(audioBlob);
         setAudioUrl(url);
         stream.getTracks().forEach((track) => track.stop());
@@ -107,13 +167,14 @@ function Live() {
         try {
           recognitionRef.current.start();
         } catch (e) {
-          console.warn('Speech recognition was already running', e);
+          console.warn("Speech recognition was already running", e);
         }
       }
     } catch (err) {
       console.error(err);
       setError(
-        'Could not access microphone. Please grant permission and ensure mic is connected.'
+        err.message ||
+          "Could not access microphone. Please grant permission and ensure mic is connected.",
       );
     }
   };
@@ -126,7 +187,7 @@ function Live() {
       try {
         recognitionRef.current.stop();
       } catch (e) {
-        console.error('Error stopping speech recognition', e);
+        console.error("Error stopping speech recognition", e);
       }
     }
     setIsRecording(false);
@@ -138,26 +199,28 @@ function Live() {
     const apiKey = getApiKey();
     if (!apiKey) {
       setError(
-        'Groq API Key is required to refine transcripts. Please add it in Settings.'
+        "Groq API Key is required to refine transcripts. Please add it in Settings.",
       );
       return;
     }
 
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      const file = new File([audioBlob], 'live_recording.webm', {
-        type: 'audio/webm',
+      const blobType = mediaRecorderRef.current?.mimeType || "audio/webm";
+      const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
+      const extension = blobType.includes("opus") ? "webm" : "webm";
+      const file = new File([audioBlob], `live_recording.${extension}`, {
+        type: blobType,
       });
 
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('model', GROQ_WHISPER_MODEL);
+      formData.append("file", file);
+      formData.append("model", GROQ_WHISPER_MODEL);
 
       const response = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
-        method: 'POST',
+        method: "POST",
         headers: { Authorization: `Bearer ${apiKey}` },
         body: formData,
       });
@@ -165,7 +228,7 @@ function Live() {
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(
-          errData.error?.message || 'Groq Whisper transcription failed.'
+          errData.error?.message || "Groq Whisper transcription failed.",
         );
       }
 
@@ -174,7 +237,7 @@ function Live() {
     } catch (err) {
       console.error(err);
       setError(
-        err.message || 'Error occurred while contacting Groq Whisper API.'
+        err.message || "Error occurred while contacting Groq Whisper API.",
       );
     } finally {
       setLoading(false);
@@ -185,18 +248,18 @@ function Live() {
     const finalResultText = whisperTranscript || liveTranscript;
     if (!finalResultText) return;
 
-    const reportsStr = localStorage.getItem('leximind_reports') || '[]';
+    const reportsStr = localStorage.getItem("leximind_reports") || "[]";
     const reports = JSON.parse(reportsStr);
 
     const formatTime = (secs) => {
       const m = Math.floor(secs / 60);
       const s = secs % 60;
-      return `${m}:${s < 10 ? '0' : ''}${s}`;
+      return `${m}:${s < 10 ? "0" : ""}${s}`;
     };
 
     const newReport = {
-      id: 'rep_' + Date.now(),
-      type: 'live',
+      id: "rep_" + Date.now(),
+      type: "live",
       title: `Live Voice Record - ${new Date().toLocaleDateString()}`,
       date: new Date().toISOString(),
       originalText: `Live Microphone Recording (${formatTime(duration)})`,
@@ -205,14 +268,14 @@ function Live() {
     };
 
     reports.unshift(newReport);
-    localStorage.setItem('leximind_reports', JSON.stringify(reports));
+    localStorage.setItem("leximind_reports", JSON.stringify(reports));
     setSaved(true);
   };
 
   const formatTimer = (timeInSeconds) => {
     const minutes = Math.floor(timeInSeconds / 60);
     const seconds = timeInSeconds % 60;
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
   return (
@@ -242,7 +305,7 @@ function Live() {
 
           {/* Waveform Visualizer */}
           <div
-            className={`waveform-visualizer-box ${isRecording ? 'active' : ''}`}
+            className={`waveform-visualizer-box ${isRecording ? "active" : ""}`}
           >
             {isRecording ? (
               <div className="bars-container">
@@ -319,7 +382,7 @@ function Live() {
                 onClick={handleSaveToReports}
                 disabled={saved}
               >
-                <Save size={14} /> {saved ? 'Saved to Reports' : 'Save Report'}
+                <Save size={14} /> {saved ? "Saved to Reports" : "Save Report"}
               </button>
             )}
           </div>
@@ -332,6 +395,16 @@ function Live() {
               </div>
             )}
 
+            {!isSpeechSupported && (
+              <div className="error-message-box mb-4">
+                <AlertCircle size={18} />
+                <p>
+                  Live voice preview is unavailable in this browser. You can
+                  still record audio and refine it with Groq Whisper.
+                </p>
+              </div>
+            )}
+
             {whisperTranscript ? (
               <div className="whisper-output-section">
                 <div className="transcription-badge premium">
@@ -339,14 +412,20 @@ function Live() {
                 </div>
                 <div className="final-transcript-text">{whisperTranscript}</div>
               </div>
-            ) : liveTranscript ? (
+            ) : (
               <div className="live-output-section">
                 <div className="transcription-badge browser">
-                  <Mic size={12} /> Live Browser Speech Preview
+                  <Mic size={12} /> Live Voice Output
                 </div>
-                <div className="live-transcript-text">{liveTranscript}</div>
+                <div className="live-transcript-text">
+                  {livePreview ||
+                    liveTranscript ||
+                    "Speak into your microphone to see the transcript here."}
+                </div>
               </div>
-            ) : (
+            )}
+
+            {!whisperTranscript && !liveTranscript && !livePreview && (
               <div className="output-placeholder">
                 Dictated text will stream here in real-time as you speak. Stop
                 recording to listen to audio or trigger high-precision Groq
