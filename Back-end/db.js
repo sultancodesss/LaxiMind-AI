@@ -81,6 +81,7 @@ async function initDB() {
           name VARCHAR(255) NOT NULL,
           email VARCHAR(255) NOT NULL UNIQUE,
           password VARCHAR(255) NOT NULL,
+          avatar_url VARCHAR(1024),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
@@ -102,9 +103,17 @@ async function initDB() {
           name VARCHAR(255) NOT NULL,
           email VARCHAR(255) NOT NULL UNIQUE,
           password VARCHAR(255) NOT NULL,
+          avatar_url VARCHAR(1024),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+    }
+
+    // Attempt to add avatar_url column to existing tables
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(1024)");
+    } catch (err) {
+      // Ignore if column already exists
     }
 
     console.log("✅ Database connection is ready and users table is available.");

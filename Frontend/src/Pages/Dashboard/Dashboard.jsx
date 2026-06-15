@@ -8,10 +8,18 @@ import Translation from './Translation';
 import Ai from './Ai';
 import Reports from './Reports';
 import Setting from './Setting';
+import Profile from './Profile';
 import { ShieldCheck, ShieldAlert, Sparkles, Key } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000"
+).replace(/\/$/, "");
 
 function Dashboard() {
   const [keyConnected, setKeyConnected] = useState(false);
+  const { user } = useAuth();
 
   // Check API key connectivity status to display in top panel header
   useEffect(() => {
@@ -53,10 +61,19 @@ function Dashboard() {
               </Link>
             )}
 
-            <div className="user-profile-badge">
-              <span className="profile-initials">LM</span>
-              <span className="profile-name">Lexi User</span>
-            </div>
+            <Link to="/dashboard/profile" className="user-profile-badge" style={{ textDecoration: 'none' }}>
+              {user?.avatar_url ? (
+                <img 
+                  src={user.avatar_url.startsWith('http') ? user.avatar_url : `${API_URL}${user.avatar_url}`} 
+                  alt="Avatar" 
+                  className="profile-avatar-img" 
+                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} 
+                />
+              ) : (
+                <span className="profile-initials">{user?.name ? user.name.substring(0, 2).toUpperCase() : "LM"}</span>
+              )}
+              <span className="profile-name">{user?.name || "Lexi User"}</span>
+            </Link>
           </div>
         </header>
 
@@ -70,6 +87,7 @@ function Dashboard() {
             <Route path="ai" element={<Ai />} />
             <Route path="reports" element={<Reports />} />
             <Route path="setting" element={<Setting />} />
+            <Route path="profile" element={<Profile />} />
           </Routes>
         </div>
       </main>

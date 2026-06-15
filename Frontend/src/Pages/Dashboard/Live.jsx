@@ -160,7 +160,7 @@ function Live() {
       };
 
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
+      mediaRecorder.start(500); // collect data in 500ms chunks
       setIsRecording(true);
 
       if (recognitionRef.current) {
@@ -193,13 +193,13 @@ function Live() {
     setIsRecording(false);
   };
 
-  const handleGroqWhisperRefine = async () => {
+  const handleGroqWhisperRefine = async (mode = "transcription") => {
     if (audioChunksRef.current.length === 0) return;
 
     const apiKey = getApiKey();
     if (!apiKey) {
       setError(
-        "Groq API Key is required to refine transcripts. Please add it in Settings.",
+        "Groq API Key is required. Please add it in Settings.",
       );
       return;
     }
@@ -210,16 +210,24 @@ function Live() {
     try {
       const blobType = mediaRecorderRef.current?.mimeType || "audio/webm";
       const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
-      const extension = blobType.includes("opus") ? "webm" : "webm";
+      
+      let extension = "webm";
+      if (blobType.includes("mp4")) extension = "mp4";
+      else if (blobType.includes("wav")) extension = "wav";
+      else if (blobType.includes("mpeg")) extension = "mp3";
+      else if (blobType.includes("ogg")) extension = "ogg";
+
+      const cleanMimeType = blobType.split(";")[0];
       const file = new File([audioBlob], `live_recording.${extension}`, {
-        type: blobType,
+        type: cleanMimeType,
       });
 
       const formData = new FormData();
       formData.append("file", file);
       formData.append("model", GROQ_WHISPER_MODEL);
 
-      const response = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
+      const endpoint = mode === "translation" ? "translations" : "transcriptions";
+      const response = await fetch(`${GROQ_API_BASE}/audio/${endpoint}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}` },
         body: formData,
@@ -228,7 +236,7 @@ function Live() {
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(
-          errData.error?.message || "Groq Whisper transcription failed.",
+          errData.error?.message || `Groq Whisper ${mode} failed.`
         );
       }
 
@@ -348,23 +356,42 @@ function Live() {
               <audio src={audioUrl} controls className="audio-element-custom" />
 
               {!whisperTranscript && (
-                <button
-                  className="btn-primary w-full mt-4"
-                  onClick={handleGroqWhisperRefine}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin mr-2" />
-                      Refining Transcript...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={14} className="mr-2" />
-                      Refine with Groq Whisper
-                    </>
-                  )}
-                </button>
+                <div className="flex gap-3 w-full mt-4 flex-col sm:flex-row">
+                  <button
+                    className="btn-primary flex-1 flex items-center justify-center"
+                    onClick={() => handleGroqWhisperRefine("transcription")}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin mr-2" />
+                        Transcribing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} className="mr-2" />
+                        Transcribe Audio
+                      </>
+                    )}
+                  </button>
+                  <button
+                    className="btn-secondary flex-1 flex items-center justify-center bg-purple-600 text-white hover:bg-purple-700 border-none"
+                    onClick={() => handleGroqWhisperRefine("translation")}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin mr-2" />
+                        Translating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} className="mr-2" />
+                        Translate to English
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           )}

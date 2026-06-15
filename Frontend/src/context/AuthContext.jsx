@@ -45,10 +45,14 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const updateUser = (newData) => {
+    setUser((prev) => ({ ...prev, ...newData }));
+  };
+
   const getToken = () => localStorage.getItem("laximind_token");
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, getToken }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, getToken }}>
       {children}
     </AuthContext.Provider>
   );

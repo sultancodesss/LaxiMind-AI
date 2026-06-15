@@ -4,6 +4,7 @@ const multer = require("multer");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const path = require("path");
 const { pool, initDB } = require("./db");
 
 const app = express();
@@ -29,12 +30,24 @@ app.use(cors({
 app.use(express.json());
 
 //   File Upload
-
 const upload = multer({ dest: "uploads/" });
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.post("/upload", upload.single("audio"), async (req, res) => {
   res.json({ transcript: "This is AI generated transcript" });
 });
+
+// Avatar Upload Config
+const avatarStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname) || ".png";
+    cb(null, req.user.id + "_" + Date.now() + ext);
+  },
+});
+const avatarUpload = multer({ storage: avatarStorage });
 
 //   Auth Middleware
 function verifyToken(req, res, next) {
@@ -97,7 +110,7 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(201).json({
       message: "Account created successfully!",
       token,
-      user: { id: userId, name, email },
+      user: { id: userId, name, email, avatar_url: null },
     });
   } catch (err) {
     console.error("Register error:", err);
@@ -134,7 +147,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     // Generate JWT
     const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
+      { id: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -142,7 +155,7 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(200).json({
       message: "Login successful!",
       token,
-      user: { id: user.id, name: user.name, email: user.email },
+      user: { id: user.id, name: user.name, email: user.email, avatar_url: user.avatar_url },
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -154,7 +167,7 @@ app.post("/api/auth/login", async (req, res) => {
 app.get("/api/auth/me", verifyToken, async (req, res) => {
   try {
     const [result] = await pool.query(
-      "SELECT id, name, email, created_at FROM users WHERE id = ?",
+      "SELECT id, name, email, avatar_url, created_at FROM users WHERE id = ?",
       [req.user.id]
     );
 
@@ -166,6 +179,33 @@ app.get("/api/auth/me", verifyToken, async (req, res) => {
   } catch (err) {
     console.error("Get user error:", err);
     return res.status(500).json({ error: "Server error." });
+  }
+});
+
+// Profile Management Routes
+app.put("/api/users/profile", verifyToken, async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Name is required." });
+
+  try {
+    await pool.query("UPDATE users SET name = ? WHERE id = ?", [name, req.user.id]);
+    res.json({ message: "Profile updated successfully", name });
+  } catch (err) {
+    console.error("Profile update error:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+app.post("/api/users/avatar", verifyToken, avatarUpload.single("avatar"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+
+  const avatarUrl = `/uploads/${req.file.filename}`;
+  try {
+    await pool.query("UPDATE users SET avatar_url = ? WHERE id = ?", [avatarUrl, req.user.id]);
+    res.json({ message: "Avatar uploaded successfully", avatar_url: avatarUrl });
+  } catch (err) {
+    console.error("Avatar upload error:", err);
+    res.status(500).json({ error: "Server error." });
   }
 });
 

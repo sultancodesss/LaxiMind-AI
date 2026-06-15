@@ -8,6 +8,7 @@ import {
   Sparkles, 
   History, 
   Settings,
+  User,
   ArrowLeft
 } from 'lucide-react';
 
@@ -75,6 +76,14 @@ function Sidebar() {
         >
           <Settings size={20} />
           <span>Settings</span>
+        </NavLink>
+
+        <NavLink 
+          to="/dashboard/profile" 
+          className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
+        >
+          <User size={20} />
+          <span>Profile</span>
         </NavLink>
       </nav>
 
