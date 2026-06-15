@@ -4,7 +4,7 @@ import { User, Camera, Save, RefreshCw, CheckCircle, AlertCircle, Mail, Edit3, S
 
 const API_URL = (
   import.meta.env.VITE_API_URL ||
-  "http://localhost:5000"
+  "https://laximind-ai.onrender.com"
 ).replace(/\/$/, "");
 
 function Profile() {
